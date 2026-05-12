@@ -1,0 +1,16 @@
+{
+    "skill_name": "load_txt_skill",
+    "description": "读取指定 .txt 文件并返回完整的文本内容，请确保目标文件已存在。返回内容会直接作为下一个步骤的输入，或交由 SummaryAgent 使用。",
+    "input": [
+        {
+            "name": "file_path",
+            "type": "str",
+            "description": "要读取的文件路径，例如：\"summary.txt\" 或 \"./outputs/result.txt\""
+        }
+    ],
+    "returns": "成功：文件的完整文本内容（str）；失败：\"[load_txt_skill 错误] <原因>\"",
+    "example": {
+        "input": ["frieren_summary.txt"],
+        "returns": "（frieren_summary.txt 的全文内容）"
+    }
+}
