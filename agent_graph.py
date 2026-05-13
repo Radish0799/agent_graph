@@ -48,7 +48,7 @@ class GraphState:
     eval_retry_count:    int        = 0
     failed_keywords:     list[str]  = field(default_factory=list)
     replan_count:        int        = 0
-    final_output:        str        = ""
+    final_output:        str                = ""
     execution_log:       list[dict] = field(default_factory=list)
 
     def log(self, node: Node, action: str, detail: str = "") -> None:
@@ -374,6 +374,11 @@ Skill 清单
 {{"step": n, "skill_name": "load_txt_skill", "description": "读取最终整理好的资讯frieren_summary.txt", "input": ["frieren_summary.txt"]}}
 ]}}
 ```
+
+使用wiki search时以下关键字已搜索过但无结果，禁止重复使用：
+{state.failed_keywords if state.failed_keywords else "目前暂无"}
+请务必使用不同关键字。
+
 注意：
 1. input 必须是字串阵列
 2. re_process_agent 的 input[0] 请填入使用者原始任务的核心问题内容
@@ -381,10 +386,6 @@ Skill 清单
 4. 读取txt档案时，先确保读取的是经过处理后的档案，避免长度过长
 5. 注意档案命名，确保读取的档案名称与当初建档时命名相同
 6. 最后，确保读取整理好的资料才算完整的流程
-
-以下关键字已搜索过但无结果，禁止重复使用：
-{state.failed_keywords if state.failed_keywords else "目前暂无"}
-请务必更换，使用不同关键字。
 """
 
         raw = self.llm.generate(
@@ -793,5 +794,7 @@ if __name__ == "__main__":
     llm   = LLMClient("/mnt/d/徐子家/實驗/qwen2.5-coder-14b-instruct-q8_0.gguf")
     graph = AgentGraph(llm, skills_dir="./skills")
 
-    graph.run("上wiki搜尋並整理一下 金色暗影 的資訊")
-    graph.run("世界上第一長河叫什麼名字")
+    # graph.run("上wiki搜尋並整理一下 金色暗影 的資訊")
+    # graph.run("世界上第一長河叫什麼名字")
+    
+    graph.run("光子从太阳核心到表面要多久")
