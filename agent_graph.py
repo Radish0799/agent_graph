@@ -124,7 +124,7 @@ def re_process_agent(question: str, chunks_folder: str, output_file: str, llm: L
 6.「已知重点」中的内容也属于正确资讯。
 
 规则：
-（A）必须同时输出 buffer 与 aliases 两个区块整理后的完整 buffer
+（A）必须同时输出 buffer 与 aliases 两个区块
 （B）buffer 保留可能与问题相关的资讯，若资讯须更新，可更新buffer的资讯
 （C）禁止捏造文章内没有的资讯
 （D）若buffer无须更新，buffer 维持原样输出即可
@@ -162,6 +162,12 @@ buffer 为空则直接通过。
 输出格式（先逐条举证，再输出结论）：
 ```eval
 {"passed": true/false, "issues": ["文献中没有指出牛顿喜欢吃苹果","问题描述2" ...]}
+```
+
+范例：
+```eval
+{"passed": true, "issues": ["文献中确实没有提到相关资讯" ]}
+```
 """
 
     ace_buffer: str = ""
@@ -236,11 +242,11 @@ buffer 为空则直接通过。
 需要整理的目标是：{question}
 
 【原文文献（{chunk_name}）】：
-{prev_buffer if prev_buffer else ''}
+「{prev_buffer if prev_buffer else ''}
 
-{chunk_text}
+{chunk_text}」
 
-【整理后的完整 buffer】：
+【整理后的完整內容】：
 {candidate_buffer}
 
 【本轮新发现的 aliases】：
@@ -801,4 +807,4 @@ if __name__ == "__main__":
     # graph.run("上wiki搜尋並整理一下 金色暗影 的資訊")
     # graph.run("世界上第一長河叫什麼名字")
     
-    graph.run("光子从太阳核心到表面要多久")
+    graph.run("罗马帝国最终分裂是在西元几年")
