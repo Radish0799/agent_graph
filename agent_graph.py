@@ -152,8 +152,8 @@ def re_process_agent(question: str, chunks_folder: str, output_file: str, llm: L
 对 buffer 中每一条新资讯，你必须在「原文文献」中明确指出对应的原文句子。
 aliases 中的每一组 alias/canonical 关系，同样必须能在原文文献中找到明确依据。
 
-（A）找得到对应原文，该条通过。
-（B）找不到对应原文 → 该条视为捏造，列入 issues。
+（A）找得到对应原文：该条通过。
+（B）找不到对应原文：该条视为捏造，列入 issues。
 
 注意：「找不到冲突」不等于通过，必须「找得到来源」才算通过。
 措辞改写允许，意思正确即可。
@@ -161,12 +161,21 @@ buffer 为空则直接通过。
 
 输出格式（先逐条举证，再输出结论）：
 ```eval
-{"passed": true/false, "issues": ["文献中没有指出牛顿喜欢吃苹果","问题描述2" ...]}
+{"passed": false, "issues": ["文献中没有指出牛顿喜欢吃苹果","问题描述2" ...]}
 ```
 
 范例：
+需要整理的目标是：牛顿喜不喜欢吃苹果
+【原文文献（Newton.txt）】：
+「
+在《原理》一书中，提出牛顿运动定律与万有引力定律，此后数世纪间成为主导自然哲学与物理学的核心理论，直至后来被相对论部分取代。
+」
+【整理后的完整內容】：
+文献中没有指出牛顿喜欢吃苹果
+
+整理后的完整内容属实，通过
 ```eval
-{"passed": true, "issues": ["文献中确实没有提到相关资讯" ]}
+{"passed": true, "issues": [""]}
 ```
 """
 
@@ -199,9 +208,11 @@ buffer 为空则直接通过。
 {prev_buffer if prev_buffer else '（目前为空）'}
 
 文献：
+「
 {chunk_text}
 
 {alias_hint}
+」
 """
             if feedback:
                 ace_user += f"\n\n【提示，请注意这部分问题】：\n{feedback}"
@@ -242,9 +253,11 @@ buffer 为空则直接通过。
 需要整理的目标是：{question}
 
 【原文文献（{chunk_name}）】：
-「{prev_buffer if prev_buffer else ''}
+「
+{prev_buffer if prev_buffer else ''}
 
-{chunk_text}」
+{chunk_text}
+」
 
 【整理后的完整內容】：
 {candidate_buffer}
