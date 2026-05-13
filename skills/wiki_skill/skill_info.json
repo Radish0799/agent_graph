@@ -5,7 +5,7 @@
         {
             "name": "keyword",
             "type": "str",
-            "description": "搜索关键词，需确保简洁不过长，例如：\"葬送的芙莉莲\""
+            "description": "搜索关键词，必须是简洁的关键字，例如：[\"牛顿\"]或是[\"元素周期表\"]"
         },
         {
             "name": "file_name",
