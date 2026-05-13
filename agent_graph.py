@@ -357,7 +357,7 @@ class PlanAgent(BaseAgent):
 根据使用者任务，输出清晰的任务执行思路（条列式）。
 若有主管反馈，请依反馈修正规划。
 
-{"使用搜索时以下关键字已搜索过但无结果，禁止重复使用：\n" + state.failed_keywords + "\n请务必使用不同关键字。"  if state.failed_keywords else ""}
+{ "使用搜索时以下关键字已搜索过但无结果，禁止重复使用：\n" + ", ".join(state.failed_keywords) + "\n请务必使用不同关键字。" if state.failed_keywords else "" }
 """
         user_content = f"使用者任务：{state.user_task}"
         if state.supervisor_feedback:
@@ -400,7 +400,7 @@ Skill 清单
 ]}}
 ```
 
-{"使用搜索时以下关键字已搜索过但无结果，禁止重复使用：\n" + state.failed_keywords + "\n请务必使用不同关键字。"  if state.failed_keywords else ""}
+{ "使用搜索时以下关键字已搜索过但无结果，禁止重复使用：\n" + ", ".join(state.failed_keywords) + "\n请务必使用不同关键字。" if state.failed_keywords else "" }
 
 注意：
 1. input 必须是字串阵列
@@ -819,5 +819,9 @@ if __name__ == "__main__":
 
     # graph.run("上wiki搜尋並整理一下 金色暗影 的資訊")
     # graph.run("世界上第一長河叫什麼名字")
+    # graph.run("罗马帝国最终分裂是在西元几年")
     
-    graph.run("罗马帝国最终分裂是在西元几年")
+    graph.run("森亜るるか 是哪部动画的角色")
+    
+    # TODO:經由搜尋到的資訊繼續規劃下個搜尋關鍵字
+    # graph.run("金色暗影 的声优是谁?她还演出过那些作品?")
