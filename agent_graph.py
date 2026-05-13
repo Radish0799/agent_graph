@@ -333,7 +333,13 @@ class PlanAgent(BaseAgent):
 
     def run(self, state: GraphState) -> GraphState:
         console.print(Rule(f"[bold yellow]PLAN（第 {state.plan_iterations + 1} 轮）[/bold yellow]"))
-        system = "你是规划Agent。根据使用者任务，输出清晰的任务执行思路（条列式）。若有主管反馈，请依反馈修正规划。只输出规划思路，不加多余说明，不需输出 JSON。"
+        system = f"""
+你是规划Agent。
+根据使用者任务，输出清晰的任务执行思路（条列式）。
+若有主管反馈，请依反馈修正规划。
+
+{"使用搜索时以下关键字已搜索过但无结果，禁止重复使用：\n" + state.failed_keywords + "\n请务必使用不同关键字。"  if state.failed_keywords else ""}
+"""
         user_content = f"使用者任务：{state.user_task}"
         if state.supervisor_feedback:
             user_content += f"\n\n主管反馈（请依此修正）：\n{state.supervisor_feedback}"
@@ -375,9 +381,7 @@ Skill 清单
 ]}}
 ```
 
-使用wiki search时以下关键字已搜索过但无结果，禁止重复使用：
-{state.failed_keywords if state.failed_keywords else "目前暂无"}
-请务必使用不同关键字。
+{"使用搜索时以下关键字已搜索过但无结果，禁止重复使用：\n" + state.failed_keywords + "\n请务必使用不同关键字。"  if state.failed_keywords else ""}
 
 注意：
 1. input 必须是字串阵列
