@@ -280,7 +280,7 @@ buffer 为空则直接通过。
                     {"role": "system", "content": eval_system},
                     {"role": "user",   "content": eval_user},
                 ],
-                label=f"Eval [{chunk_name}] 尝试#{attempt}",
+                label=f"Eval [{chunk_name}] 嘗試#{attempt}",
                 max_tokens=512,
                 temperature=0.0,
             ).strip()
@@ -347,15 +347,15 @@ _RE_PROCESS_DESCRIPTION = """
 
 _SUB_WORKFLOW_DESCRIPTION = """
 1. skill_name: sub_workflow
-  描述: 读取指定档案作为已知资讯，引用前段的结果继续搜索。
+  描述: 读取指定档案作为已知资讯，引用前段的结果继续搜索，并将最终结果存成指定档案。
   input 参数:
     [0] context_file (str): 包含已知资讯的 .txt 档案路径，例如："largest_city_summary.txt"
+    [1] output_file (str): 子流程最终结果要储存的档案名称，例如："city_population.txt"
   回传: 子 workflow 的最终输出字串
-  使用时机: 当某步骤的结果需要作为下一阶段搜索的依据时（例如：已经找到世界上最大的城市的名称，存在了 largest_city_summary.txt，再呼叫 sub_workflow 搜索该城市有多少人）
-  范例 input: ["largest_city_summary.txt"]
+  使用时机: 当某步骤的结果需要作为下一阶段搜索的依据时
+  范例 input: ["largest_city_summary.txt", "city_population.txt"]
   范例回传: "这座城市里面有分好几个区块，其中..."
 """
-
 class BaseAgent:
     def __init__(self, llm: LLMClient):
         self.llm = llm
@@ -373,13 +373,21 @@ class PlanAgent(BaseAgent):
         console.print(Rule(f"[bold yellow]PLAN（第 {state.plan_iterations + 1} 輪）[/bold yellow]"))
         all_descriptions = "agent类型skill：\n"+ _RE_PROCESS_DESCRIPTION + _SUB_WORKFLOW_DESCRIPTION + "\n\n一般skill" + self._skill_descriptions
         system = f"""
-你是规划Agent。
-根据用户任务，输出清晰的任务执行思路（条列式）。
+你是一位操作电脑的工程师。
+根据用户任务，规划在wiki搜索时的步骤，先抓出合理的关键字，再进行搜索，提供清晰的任务执行思路（条列式）。
 若有主管反馈，请依反馈修正规划。
+
+范例（用户任务：世界上最大的城市是哪座？该城市的人口分布是怎么样的）：
+1. 使用 wiki_skill 搜索关键字"最大的城市"，存成档案largest_city.txt
+2. 新增 chunks 文件夹 largest_city_chunk
+3. 使用 tidy_skill 整理 largest_city.txt 资讯避免过长
+4. 萃取城市名称
+5. 用已知城市名称配合 sub_workflow 继续搜索其人口分布，并存成 city_population_summary.txt
+6. 读取最终整理好的人口资讯 city_population_summary.txt
 
 {"使用搜索时以下关键字已搜索过但无结果，禁止重复使用：\n" + ", ".join(state.failed_keywords) + "\n请务必使用不同关键字。" if state.failed_keywords else "" }
 
-可供使用的工具：
+可使用的工具：
 {all_descriptions}
 """
         user_content = f"用户任务：{state.user_task}"
@@ -393,7 +401,7 @@ class PlanAgent(BaseAgent):
 
         state.current_plan = self.llm.generate(
             [{"role": "system", "content": system}, {"role": "user", "content": user_content}],
-            label="规划Agent",
+            label="規劃Agent",
         )
         state.plan_iterations += 1
         state.log(Node.PLAN, f"規劃第 {state.plan_iterations}輪", state.current_plan[:80])
@@ -408,38 +416,43 @@ class SuperviseAgent(BaseAgent):
     def run(self, state: GraphState) -> GraphState:
         console.print(Rule("[bold yellow]SUPERVISE[/bold yellow]"))
 
-        all_descriptions = "agent类型skill：\n"+ _RE_PROCESS_DESCRIPTION + _SUB_WORKFLOW_DESCRIPTION + "\n\n一般skill" + self._skill_descriptions
+        all_descriptions = ""+ _RE_PROCESS_DESCRIPTION + _SUB_WORKFLOW_DESCRIPTION + "\n\n功能型skill" + self._skill_descriptions
 
         system = f"""
-你是主管Agent，负责审查规划，严格判断书入是否符合要求，先找出是否有不合逻辑的地方，并合理运用skill并输出具体的执行步骤清单。
+你是一位谨慎的主管，负责审查规划，先找出是否有不合逻辑的地方，并合理运用skill并输出具体的执行步骤清单。
 Skill 清单
 {all_descriptions}
 
 审查规则：
 (A) 若规划不够好、缺少步骤，只输出纯文字修改建议，不要 JSON。
 (B) 若规划够好，开始安排步骤，输出以下格式的 JSON（不加其他文字）：
-范例(A) 
-wiki_skill 输入应该为简短的关键字而非整串问题，且两个以上问题应加入 sub_workflow 引用前段的结果继续搜索详细资讯。
-
-范例(B)（假设有 n 个 step）：
-```json
-{{"approved": true, "workflow": [
-{{"step": 1, "skill_name": "wiki_skill", "description": "在wiki上搜索关键字", "input": ["关键字", "output.txt"]}},
-{{"step": 2, "skill_name": "new_folder_skill", "description": "新增 chunks 文件夹", "input": ["chunks_folder"]}}
-...(省略)
-{{"step": n, "skill_name": "load_txt_skill", "description": "读取最终整理好的资讯frieren_summary.txt", "input": ["frieren_summary.txt"]}}
-]}}
-```
-
-{ "使用搜索时以下关键字已搜索过但无结果，禁止重复使用：\n" + ", ".join(state.failed_keywords) + "\n请务必使用不同关键字。" if state.failed_keywords else "" }
 
 注意：
+{"使用搜索时以下关键字已搜索过但无结果，禁止重复使用：\n" + ", ".join(state.failed_keywords) + "\n请务必使用不同关键字。" if state.failed_keywords else "" }
+
+流程规则：
+0. 每一步骤都会被直接执行，填入的字串确保不是引用
 1. input 必须是字串阵列
-2. re_process_agent 的 input[0] 请填入用户原始任务的核心问题内容
+2. 在范例的情况下，step 5使用的需要是sub_workflow，而不是使用wiki_skill
 3. 每个 step 的 skill_name 必须完全符合上方 Skill 清单的名称
 4. 读取txt档案时，先确保读取的是经过处理后的档案，避免长度过长
 5. 注意档案命名，确保读取的档案名称与当初建档时命名相同
 6. 最后，确保读取整理好的资料才算完整的流程
+
+
+范例(A) 
+wiki_skill 输入应该为简短的关键字而非完整问题，且第二段搜索依赖第一段结果时，应使用 sub_workflow。
+
+范例(B)（假设有 n 个 step）：
+```json
+{{"approved": true, "workflow": [
+{{"step": 1, "skill_name": "wiki_skill", "description": "在wiki上搜索关键字", "input": ["世界最大城市", "largest_city.txt"]}},
+{{"step": 2, "skill_name": "new_folder_skill", "description": "新增 chunks 文件夹", "input": ["largest_city_chunks"]}},
+{{"step": 3, "skill_name": "tidy_skill", "description": "整理资讯避免过长", "input": ["largest_city_chunks", "largest_city.txt"]}},
+{{"step": 4, "skill_name": "re_process_agent", "description": "萃取城市名称", "input": ["世界上最大的城市叫什么名字？", "./largest_city_chunks", "largest_city_summary.txt"]}},
+{{"step": 5, "skill_name": "sub_workflow", "description": "用已知城市名称继续搜索其人口分布", "input": ["largest_city_summary.txt", "city_population_summary.txt"]}},
+{{"step": 6, "skill_name": "load_txt_skill", "description": "读取最终整理好的人口资讯", "input": ["city_population_summary.txt"]}}
+]}}
 """
 
         user_content = f"用户任务：{state.user_task}\n\n规划思路：\n{state.current_plan}"
@@ -529,26 +542,32 @@ class ExecuteAgent(BaseAgent):
                 inputs[0] = state.user_task
                 result = re_process_agent(*inputs, llm=self.llm)
             
-            # 新增
             elif skill == "sub_workflow":
                 if state.depth >= 2:
                     result = "[sub_workflow 跳過] 已達最大層數限制（2層）"
                 else:
-                    context_file = inputs[0] if inputs else ""
+                    context_file = inputs[0] if len(inputs) > 0 else ""
+                    output_file  = inputs[1] if len(inputs) > 1 else ""
+
                     sub_context = ""
                     if context_file and os.path.exists(context_file):
                         with open(context_file, "r", encoding="utf-8") as f:
                             sub_context = f.read().strip()
                     else:
                         sub_context = f"（找不到檔案：{context_file}）"
-                    
+
+                    # 附加輸出檔名指示到 user_task
+                    sub_task = state.user_task
+                    if output_file:
+                        sub_task += f"\n\n注意：请将最终整理好的资讯存成档案「{output_file}」，供后续流程读取。"
+
                     sub_graph = AgentGraph(
                         llm=self.llm,
-                        skills_dir=self._skills_dir,  # 見下方說明
+                        skills_dir=self._skills_dir,
                         depth=state.depth + 1,
                     )
                     result = sub_graph.run(
-                        user_task=state.user_task,
+                        user_task=sub_task,
                         sub_context=sub_context,
                     )
             
@@ -684,6 +703,12 @@ class SummaryAgent(BaseAgent):
 （根据资讯回答用户问题，没有提供的资讯不可捏造）
 ```
 
+范例：
+```result
+上网搜索了关于苹果手机的资讯并整理后存成了apple_smartphone_summary.txt档案
+根据整理好的信息，苹果手机目前最新款式是...
+```
+
 若资讯不足或完全无关，特定格式（必须遵守格式）：
 ```result
 [NEED_REPLAN]
@@ -697,7 +722,7 @@ class SummaryAgent(BaseAgent):
                     f"各步骤执行结果：\n{steps_text}"
                 )},
             ],
-            label="总结Agent",
+            label="總結Agent",
             max_tokens=8192,
         )
         clean_output  = _strip_think(output)
