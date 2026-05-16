@@ -36,6 +36,8 @@ class Node(str, Enum):
 @dataclass
 class GraphState:
     user_task:           str        = ""
+    sub_context:         str        = ""
+    depth:               int        = 0
     current_plan:        str        = ""
     supervisor_feedback: str        = ""
     plan_iterations:     int        = 0
@@ -135,6 +137,11 @@ def re_process_agent(question: str, chunks_folder: str, output_file: str, llm: L
 更新后的重点整理（上限 800 字），必须是事实
 ```
 
+若本段无相关资讯，留白（不填入任何文字）：
+```buffer
+
+```
+
 注意：alias 与 canonical 必须指向同一人/事/物，例如："苹果" 可称作 "apple" 的时候
 ```aliases
 [{"alias": "A的名称", "canonical": "A的别名或绰号等"}, {"alias": "苹果", "canonical": "apple"}, ...]
@@ -171,9 +178,11 @@ buffer 为空则直接通过。
 在《原理》一书中，提出牛顿运动定律与万有引力定律，此后数世纪间成为主导自然哲学与物理学的核心理论，直至后来被相对论部分取代。
 」
 【整理后的完整內容】：
-文献中没有指出牛顿喜欢吃苹果
 
-整理后的完整内容属实，通过
+【本轮新发现的 aliases】：
+[]
+
+整理后的完整内容属实（因没有资讯所以为空），通过，输出
 ```eval
 {"passed": true, "issues": [""]}
 ```
@@ -325,10 +334,10 @@ buffer 为空则直接通过。
 # re_process_agent 的說明文字，给 SuperviseAgent 看的
 _RE_PROCESS_DESCRIPTION = """
 0. skill_name: re_process_agent
-  描述: 【内建 skill_agent】循环读取指定文件夹内的每个 .txt chunk，针对使用者问题萃取重点，累积写入目标档案。每次只处理一个 chunk，不会有 context 爆炸问题。
+  描述: 【内建 skill_agent】循环读取指定文件夹内的每个 .txt chunk，针对用户问题萃取重点，累积写入目标档案。每次只处理一个 chunk，不会有 context 爆炸问题。
 若某 chunk 与问题无关则自动跳过。 
   input 参数:
-    [0] question (str): 使用者核心问题，用来引导每个 chunk 的重点萃取，例如："芙莉莲的角色背景与剧情是什么？"
+    [0] question (str): 用户核心问题，用来引导每个 chunk 的重点萃取，例如："芙莉莲的角色背景与剧情是什么？"
     [1] chunks_folder (str): 存放 chunk .txt 的文件夹路径，例如："./frieren_chunks"
     [2] output_file (str): 储存重点整理结果的目标档案名称，例如："frieren_summary.txt"
   回传: "已将重点整理储存至 <output_file>，共处理 <n> 个 chunk，有内容的 chunk 共 <m> 个"
@@ -336,6 +345,16 @@ _RE_PROCESS_DESCRIPTION = """
   范例回传: "已将重点整理储存至 frieren_summary.txt，共处理 42 个 chunk，有内容的 chunk 共 28 个"
 """
 
+_SUB_WORKFLOW_DESCRIPTION = """
+1. skill_name: sub_workflow
+  描述: 【内建 skill】以原始用户任务为基础，读取指定档案作为已知资讯，启动一个子 workflow 继续完成任务。
+  input 参数:
+    [0] context_file (str): 包含已知资讯的 .txt 档案路径，例如："largest_city_summary.txt"
+  回传: 子 workflow 的最终输出字串
+  使用时机: 当某步骤的结果需要作为下一阶段搜索的依据时（例如：已经找到世界上最大的城市的名称，存在了 largest_city_summary.txt，再呼叫 sub_workflow 搜索该城市有多少人）
+  范例 input: ["largest_city_summary.txt"]
+  范例回传: "这座城市里面有分好几个区块，其中..."
+"""
 
 class BaseAgent:
     def __init__(self, llm: LLMClient):
@@ -351,15 +370,24 @@ class PlanAgent(BaseAgent):
         self._skill_descriptions = skill_descriptions
 
     def run(self, state: GraphState) -> GraphState:
-        console.print(Rule(f"[bold yellow]PLAN（第 {state.plan_iterations + 1} 轮）[/bold yellow]"))
+        console.print(Rule(f"[bold yellow]PLAN（第 {state.plan_iterations + 1} 輪）[/bold yellow]"))
+        all_descriptions = "agent类型skill：\n"+ _RE_PROCESS_DESCRIPTION + _SUB_WORKFLOW_DESCRIPTION + "\n\n一般skill" + self._skill_descriptions
         system = f"""
 你是规划Agent。
-根据使用者任务，输出清晰的任务执行思路（条列式）。
+根据用户任务，输出清晰的任务执行思路（条列式）。
 若有主管反馈，请依反馈修正规划。
 
-{ "使用搜索时以下关键字已搜索过但无结果，禁止重复使用：\n" + ", ".join(state.failed_keywords) + "\n请务必使用不同关键字。" if state.failed_keywords else "" }
+{"使用搜索时以下关键字已搜索过但无结果，禁止重复使用：\n" + ", ".join(state.failed_keywords) + "\n请务必使用不同关键字。" if state.failed_keywords else "" }
+
+可供使用的工具：
+{all_descriptions}
 """
-        user_content = f"使用者任务：{state.user_task}"
+        user_content = f"用户任务：{state.user_task}"
+        
+        # 若有上層傳入的已知資訊，加入 prompt
+        if state.sub_context:
+            user_content += f"\n\n请根据以下已知信息进行规划：\n{state.sub_context}"
+            
         if state.supervisor_feedback:
             user_content += f"\n\n主管反馈（请依此修正）：\n{state.supervisor_feedback}"
 
@@ -368,7 +396,7 @@ class PlanAgent(BaseAgent):
             label="规划Agent",
         )
         state.plan_iterations += 1
-        state.log(Node.PLAN, f"规划第 {state.plan_iterations} 轮", state.current_plan[:80])
+        state.log(Node.PLAN, f"規劃第 {state.plan_iterations}輪", state.current_plan[:80])
         return state
 
 
@@ -380,10 +408,10 @@ class SuperviseAgent(BaseAgent):
     def run(self, state: GraphState) -> GraphState:
         console.print(Rule("[bold yellow]SUPERVISE[/bold yellow]"))
 
-        all_descriptions = "\n" + _RE_PROCESS_DESCRIPTION + "\n\n" + self._skill_descriptions
+        all_descriptions = "agent类型skill：\n"+ _RE_PROCESS_DESCRIPTION + _SUB_WORKFLOW_DESCRIPTION + "\n\n一般skill" + self._skill_descriptions
 
         system = f"""
-你是主管Agent，负责审查规划，合理运用skill并输出具体的执行步骤清单。
+你是主管Agent，负责审查规划，先找出是否有不合逻辑的地方，并合理运用skill并输出具体的执行步骤清单。
 Skill 清单
 {all_descriptions}
 
@@ -404,20 +432,21 @@ Skill 清单
 
 注意：
 1. input 必须是字串阵列
-2. re_process_agent 的 input[0] 请填入使用者原始任务的核心问题内容
+2. re_process_agent 的 input[0] 请填入用户原始任务的核心问题内容
 3. 每个 step 的 skill_name 必须完全符合上方 Skill 清单的名称
 4. 读取txt档案时，先确保读取的是经过处理后的档案，避免长度过长
 5. 注意档案命名，确保读取的档案名称与当初建档时命名相同
 6. 最后，确保读取整理好的资料才算完整的流程
 """
 
+        user_content = f"用户任务：{state.user_task}\n\n规划思路：\n{state.current_plan}"
+        if state.sub_context:
+            user_content += f"\n\n已知信息：\n{state.sub_context}"
+        
         raw = self.llm.generate(
             [
                 {"role": "system", "content": system},
-                {"role": "user",   "content": (
-                    f"使用者任务：{state.user_task}\n\n"
-                    f"规划思路：\n{state.current_plan}"
-                )},
+                {"role": "user",   "content": user_content},
             ],
             label="主管Agent",
         )
@@ -478,9 +507,10 @@ class DispatchAgent(BaseAgent):
 
 
 class ExecuteAgent(BaseAgent):
-    def __init__(self, llm: LLMClient, skill_registry: dict[str, Callable]):
+    def __init__(self, llm: LLMClient, skill_registry: dict, skills_dir: str = "./skills"):
         super().__init__(llm)
         self._registry = skill_registry
+        self._skills_dir = skills_dir
 
     def run(self, state: GraphState) -> GraphState:
         step    = state.current_step
@@ -488,23 +518,48 @@ class ExecuteAgent(BaseAgent):
         inputs  = step.get("input", [])
         attempt = state.eval_retry_count + 1
 
-        console.print(Rule(f"[bold yellow]EXECUTE [{skill}] 尝试 #{attempt}[/bold yellow]"))
+        console.print(Rule(f"[bold yellow]EXECUTE [{skill}] 嘗試 #{attempt}[/bold yellow]"))
 
         try:
             if skill == "re_process_agent":
                 inputs = list(inputs)
                 inputs[0] = state.user_task
                 result = re_process_agent(*inputs, llm=self.llm)
+            
+            # 新增
+            elif skill == "sub_workflow":
+                if state.depth >= 2:
+                    result = "[sub_workflow 跳過] 已達最大層數限制（2層）"
+                else:
+                    context_file = inputs[0] if inputs else ""
+                    sub_context = ""
+                    if context_file and os.path.exists(context_file):
+                        with open(context_file, "r", encoding="utf-8") as f:
+                            sub_context = f.read().strip()
+                    else:
+                        sub_context = f"（找不到檔案：{context_file}）"
+                    
+                    sub_graph = AgentGraph(
+                        llm=self.llm,
+                        skills_dir=self._skills_dir,  # 見下方說明
+                        depth=state.depth + 1,
+                    )
+                    result = sub_graph.run(
+                        user_task=state.user_task,
+                        sub_context=sub_context,
+                    )
+            
             elif skill in self._registry:
                 result = self._registry[skill](*inputs)
             else:
-                result = f"[错误] 找不到 skill：{skill}（请确认 skills/ 目录是否有对应文件夹）"
+                result = f"[错误] 找不到 skill：{skill}"
+
         except Exception as e:
             result = f"[Skill 执行错误] {skill}: {e}"
 
         state.current_output = str(result)
         state.log(Node.EXECUTE, f"[{skill}] 尝试#{attempt}", state.current_output[:80])
-        console.print(Panel(state.current_output, title=f"[cyan]{skill} 回传[/cyan]", border_style="cyan"))
+        console.print(Panel(state.current_output, title=f"[cyan]{skill} 回傳[/cyan]", border_style="cyan"))
         return state
 
 
@@ -613,17 +668,17 @@ class SummaryAgent(BaseAgent):
         )
 
         system = """
-你是一位负责重点整理的专家，根据所有步骤的执行结果，针对使用者的原始任务给出最终回答。
+你是一位负责重点整理的专家，根据所有步骤的执行结果，针对用户的原始任务给出最终回答。
 
 流程：
-1. 先针对「使用者任务」与「各步骤执行结果」进行完整推理分析
-2. 判断结果中是否有足够的实质相关资讯可以回答使用者
+1. 先针对「用户任务」与「各步骤执行结果」进行完整推理分析
+2. 判断结果中是否有足够的实质相关资讯可以回答用户
 3. 最后输出以下其中一种 result 区块：
 
 若资讯足够：
 ```result
 （一段话说明完成了什么流程）
-（根据资讯回答使用者问题，没有提供的资讯不可捏造）
+（根据资讯回答用户问题，没有提供的资讯不可捏造）
 ```
 
 若资讯不足或完全无关，特定格式（必须遵守格式）：
@@ -635,7 +690,7 @@ class SummaryAgent(BaseAgent):
             [
                 {"role": "system", "content": system},
                 {"role": "user",   "content": (
-                    f"使用者原始任务：{state.user_task}\n\n"
+                    f"用户原始任务：{state.user_task}\n\n"
                     f"各步骤执行结果：\n{steps_text}"
                 )},
             ],
@@ -731,20 +786,23 @@ class GraphEdge:
 class AgentGraph:
     MAX_STEPS = 200
 
-    def __init__(self, llm: LLMClient, skills_dir: str = "./skills"):
+    def __init__(self, llm: LLMClient, skills_dir: str = "./skills", depth: int = 0):
+        self._llm = llm
+        self._skills_dir = skills_dir  # 存起來供 sub_workflow 用
+        self._depth = depth
         skill_registry, skill_descriptions = load_skills(skills_dir)
-        self._skill_registry = skill_registry
-        self._nodes: dict[Node, BaseAgent] = self._build_nodes(llm, skill_registry, skill_descriptions)
-        self._graph: dict[Node, GraphEdge] = self._build_graph()
+        self._nodes = self._build_nodes(llm, skill_registry, skill_descriptions)
+        self._graph = self._build_graph()
 
     def _build_nodes(self, llm, skill_registry, skill_descriptions) -> dict[Node, BaseAgent]:
         return {
             Node.PLAN:      PlanAgent(llm, skill_descriptions),
             Node.SUPERVISE: SuperviseAgent(llm, skill_descriptions),
             Node.DISPATCH:  DispatchAgent(llm),
-            Node.EXECUTE:   ExecuteAgent(llm, skill_registry),
+            Node.EXECUTE:   ExecuteAgent(llm, skill_registry, skills_dir=self._skills_dir),
             Node.EVAL:      EvalAgent(llm),
             Node.SUMMARY:   SummaryAgent(llm),
+
         }
 
     def _build_graph(self) -> dict[Node, GraphEdge]:
@@ -758,10 +816,13 @@ class AgentGraph:
             Node.END:       GraphEdge(target=None),
         }
 
-    def run(self, user_task: str) -> str:
-        console.print(Panel(user_task, title="[bold]任務：[/bold]", border_style="white"))
+    def run(self, user_task: str, sub_context: str = "") -> str:
+        console.print(Panel(user_task, title=f"[bold]任務（depth={self._depth}）：[/bold]", border_style="white"))
 
-        state        = GraphState(user_task=user_task)
+        state        = GraphState(user_task=user_task,
+                                  sub_context=sub_context,
+                                  depth=self._depth
+                                  )
         current_node = Node.PLAN
 
         for step_num in range(self.MAX_STEPS):
@@ -780,7 +841,7 @@ class AgentGraph:
             console.print(f"  [dim]→ 下一節點：[bold]{next_node.value}[/bold][/dim]")
             current_node = next_node
         else:
-            console.print(f"[bold red]超過步數上限 {self.MAX_STEPS}，强制终止。[/bold red]")
+            console.print(f"[bold red]超過步數上限 {self.MAX_STEPS}，強制停止。[/bold red]")
 
         self._print_log(state)
         self._print_step_results(state)
@@ -821,7 +882,7 @@ if __name__ == "__main__":
     # graph.run("世界上第一長河叫什麼名字")
     # graph.run("罗马帝国最终分裂是在西元几年")
     
-    graph.run("森亜るるか 是哪部动画的角色")
+    # graph.run("森亜るるか 是哪部动画的角色")
     
     # TODO:經由搜尋到的資訊繼續規劃下個搜尋關鍵字
-    # graph.run("金色暗影 的声优是谁?她还演出过那些作品?")
+    graph.run("金色暗影 的声优是谁?她还有为哪些作品配音?")

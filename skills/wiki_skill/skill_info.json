@@ -1,11 +1,11 @@
 {
     "skill_name": "wiki_skill",
-    "description": "搜索 Wikipedia，并将页面全文保存为 .txt 文件。会抓取完整文章内容，不受字数限制。",
+    "description": "搜索 Wikipedia，并将页面全文保存为 .txt 文件。会抓取完整文章内容，不受字数限制，通常会很长一篇。",
     "input": [
         {
             "name": "keyword",
             "type": "str",
-            "description": "搜索关键词，必须是简洁的关键字（越短越好），例如：[\"牛顿\"]或是[\"葬送的芙莉莲\"]"
+            "description": "搜索关键词，必须是简洁的关键字，禁止使用问句，例如：[\"牛顿\"]或是[\"葬送的芙莉莲\"]，而非[\"牛顿喜欢吃什么\"]"
         },
         {
             "name": "file_name",
@@ -13,7 +13,7 @@
             "description": "保存结果的文件名称，建议名称与主题相关，且必须包含副档名 .txt，例如：\"frieren.txt\""
         }
     ],
-    "returns": "成功时返回：\"抓取与保存成功，已保存为 <file_name>\"；失败时返回：\"[wiki_skill 错误] <原因>\"",
+    "returns": "抓取与保存成功，已保存为 <file_name>",
     "example": {
         "input": ["葬送的芙莉莲", "frieren.txt"],
         "returns": "抓取与保存成功，已保存为 frieren.txt"

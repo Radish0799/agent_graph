@@ -1,11 +1,11 @@
 {
     "skill_name": "tidy_skill",
-    "description": "将长文本切分为多个区块，并存入指定文件夹，适用于文章内容过长的情况。文件命名格式为 <原始文件名去除副档名>_1.txt、_2.txt……依序递增。",
+    "description": "将长文本切分为多个区块，并存入指定文件夹，适用于文章内容过长的情况。",
     "input": [
         {
             "name": "folder_name",
             "type": "str",
-            "description": "存储 chunk 的目标文件夹名称，建议名称与主题相关（若不存在则自动创建），例如：\"frieren_chunks\""
+            "description": "存储 chunk 的目标文件夹名称（若不存在则自动创建），建议名称与主题相关，例如：\"frieren_chunks\""
         },
         {
             "name": "source_file",
@@ -13,7 +13,7 @@
             "description": "来源 .txt 文件路径，例如：\"frieren.txt\""
         }
     ],
-    "returns": "成功：\"已将结果存储至 ./<folder_name> 文件夹内，共 <n> 个 chunk\"；失败：\"[tidy_skill 错误] <原因>\"",
+    "returns": "已将结果存储至 ./<folder_name> 文件夹内，共 <n> 个 chunk",
     "example": {
         "input": ["frieren_chunks", "frieren.txt"],
         "returns": "已将结果存储至 ./frieren_chunks 文件夹内，共 42 个 chunk"

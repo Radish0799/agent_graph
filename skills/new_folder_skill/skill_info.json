@@ -1,6 +1,6 @@
 {
     "skill_name": "new_folder_skill",
-    "description": "创建指定名称的文件夹。若文件夹已存在，则不会重复创建，也不会报错，而是直接返回当前状态。",
+    "description": "创建指定名称的文件夹。",
     "input": [
         {
             "name": "folder_name",
@@ -8,7 +8,7 @@
             "description": "要创建的文件夹名称或路径，建议名称与主题相关，例如：\"frieren_chunks\" 或 \"./frieren/frieren_chunks\""
         }
     ],
-    "returns": "创建成功：\"已创建文件夹：<folder_name>\"；已存在：\"文件夹已存在：<folder_name>\"；失败：\"[new_folder_skill 错误] <原因>\"",
+    "returns": "已创建文件夹：<folder_name>",
     "example": {
         "input": ["frieren_chunks"],
         "returns": "已创建文件夹：frieren_chunks"

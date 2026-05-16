@@ -1,19 +1,3 @@
-"""
-skill_loader.py
-===============
-動態掃描 ./skills/ 目錄，載入所有符合規範的 skill。
-
-Skill 資料夾規範：
-  skills/
-  └── <skill_name>/
-      ├── skill_info.json     ← 說明文件（必須）
-      └── <skill_name>.py     ← 實作（必須，函數名稱需與資料夾名稱相同）
-
-載入後提供：
-  SKILL_REGISTRY    : dict[str, Callable]   → 供 ExecuteAgent 呼叫
-  SKILL_DESCRIPTIONS: str                   → 供 SuperviseAgent 規劃時參考
-"""
-
 import os
 import json
 import importlib.util
@@ -24,13 +8,12 @@ from rich import box
 
 console = Console()
 
-# ── 設定 skills 根目錄 ─────────────────────────────────────────
 _SKILLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "skills")
 
 
 def _json_to_description(info: dict) -> str:
     """
-    將 skill_info.json 的內容轉換成給 LLM 看的自然語言說明。
+    將 skill_info.json 的內容轉換成自然語言說明。
     """
     lines = []
     lines.append(f"skill_name: {info.get('skill_name', '?')}")
@@ -38,18 +21,18 @@ def _json_to_description(info: dict) -> str:
 
     inputs = info.get("input", [])
     if inputs:
-        lines.append("  input 參數:")
+        lines.append("  input 参数:")
         for i, p in enumerate(inputs):
             lines.append(
                 f"    [{i}] {p.get('name', '')} ({p.get('type', 'str')}): {p.get('description', '')}"
             )
 
-    lines.append(f"  回傳: {info.get('returns', '')}")
+    lines.append(f"  回传: {info.get('returns', '')}")
 
     example = info.get("example")
     if example:
-        lines.append(f"  範例 input: {example.get('input', [])}")
-        lines.append(f"  範例回傳: {example.get('returns', '')}")
+        lines.append(f"  范例 input: {example.get('input', [])}")
+        lines.append(f"  范例回传: {example.get('returns', '')}")
 
     return "\n".join(lines)
 
@@ -125,7 +108,7 @@ def load_skills(skills_dir: str = _SKILLS_DIR) -> tuple[dict[str, Callable], str
     _print_load_summary(registry, load_errors)
 
     skill_descriptions = (
-        "可用 Skill 清單（每個 step 的 skill_name 必須從這裡選）：\n\n"
+        "\n可用Skill 清单（每个 step 的 skill_name 必须从这里选：\n\n"
         + "\n\n".join(f"{i+1}. {desc}" for i, desc in enumerate(descriptions))
     )
 
