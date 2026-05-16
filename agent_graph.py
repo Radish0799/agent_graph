@@ -334,7 +334,7 @@ buffer 为空则直接通过。
 # re_process_agent 的說明文字，给 SuperviseAgent 看的
 _RE_PROCESS_DESCRIPTION = """
 0. skill_name: re_process_agent
-  描述: 【内建 skill_agent】循环读取指定文件夹内的每个 .txt chunk，针对用户问题萃取重点，累积写入目标档案。每次只处理一个 chunk，不会有 context 爆炸问题。
+  描述: 循环读取指定文件夹内的每个 .txt chunk，针对用户问题萃取重点，累积写入目标档案。每次只处理一个 chunk，不会有 context 爆炸问题。
 若某 chunk 与问题无关则自动跳过。 
   input 参数:
     [0] question (str): 用户核心问题，用来引导每个 chunk 的重点萃取，例如："芙莉莲的角色背景与剧情是什么？"
@@ -347,7 +347,7 @@ _RE_PROCESS_DESCRIPTION = """
 
 _SUB_WORKFLOW_DESCRIPTION = """
 1. skill_name: sub_workflow
-  描述: 【内建 skill】以原始用户任务为基础，读取指定档案作为已知资讯，启动一个子 workflow 继续完成任务。
+  描述: 读取指定档案作为已知资讯，引用前段的结果继续搜索。
   input 参数:
     [0] context_file (str): 包含已知资讯的 .txt 档案路径，例如："largest_city_summary.txt"
   回传: 子 workflow 的最终输出字串
@@ -411,14 +411,17 @@ class SuperviseAgent(BaseAgent):
         all_descriptions = "agent类型skill：\n"+ _RE_PROCESS_DESCRIPTION + _SUB_WORKFLOW_DESCRIPTION + "\n\n一般skill" + self._skill_descriptions
 
         system = f"""
-你是主管Agent，负责审查规划，先找出是否有不合逻辑的地方，并合理运用skill并输出具体的执行步骤清单。
+你是主管Agent，负责审查规划，严格判断书入是否符合要求，先找出是否有不合逻辑的地方，并合理运用skill并输出具体的执行步骤清单。
 Skill 清单
 {all_descriptions}
 
 审查规则：
 (A) 若规划不够好、缺少步骤，只输出纯文字修改建议，不要 JSON。
 (B) 若规划够好，开始安排步骤，输出以下格式的 JSON（不加其他文字）：
-范例（假设有 n 个 step）：
+范例(A) 
+wiki_skill 输入应该为简短的关键字而非整串问题，且两个以上问题应加入 sub_workflow 引用前段的结果继续搜索详细资讯。
+
+范例(B)（假设有 n 个 step）：
 ```json
 {{"approved": true, "workflow": [
 {{"step": 1, "skill_name": "wiki_skill", "description": "在wiki上搜索关键字", "input": ["关键字", "output.txt"]}},
