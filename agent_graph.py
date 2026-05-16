@@ -153,22 +153,20 @@ def re_process_agent(question: str, chunks_folder: str, output_file: str, llm: L
 """
 
     eval_system = """
-你是一位严格的资讯核查员。
+你是一位资讯核查员。
 
 核查方式：
-对 buffer 中每一条新资讯，你必须在「原文文献」中明确指出对应的原文句子。
+对 buffer 中每一条新资讯，你必须在「原文文献」中明确指出对应的原文句子，措辞改写允许，意思正确即可。
 aliases 中的每一组 alias/canonical 关系，同样必须能在原文文献中找到明确依据。
 
-（A）找得到对应原文：该条通过。
-（B）找不到对应原文：该条视为捏造，列入 issues。
+（A）若 buffer 与 aliases 中的资讯找得到对应原文：该条通过。
+（B）若 buffer 与 aliases 中的资讯找不到对应原文：该条视为捏造，列入 issues。
 
-注意：「找不到冲突」不等于通过，必须「找得到来源」才算通过。
-措辞改写允许，意思正确即可。
-buffer 为空则直接通过。
+注意：必须「找得到来源」才算通过。
 
-输出格式（先逐条举证，再输出结论）：
+输出格式：
 ```eval
-{"passed": false, "issues": ["文献中没有指出牛顿喜欢吃苹果","问题描述2" ...]}
+{"passed": true/false, "issues": ["文献中没有指出牛顿喜欢吃苹果","问题描述2" ...]}
 ```
 
 范例：
@@ -178,11 +176,15 @@ buffer 为空则直接通过。
 在《原理》一书中，提出牛顿运动定律与万有引力定律，此后数世纪间成为主导自然哲学与物理学的核心理论，直至后来被相对论部分取代。
 」
 【整理后的完整內容】：
+```buffer
 
+```
 【本轮新发现的 aliases】：
+```aliases
 []
+```
 
-整理后的完整内容属实（因没有资讯所以为空），通过，输出
+（整理后的完整内容属实（因没有资讯所以为空），通过，输出）
 ```eval
 {"passed": true, "issues": [""]}
 ```
@@ -269,10 +271,14 @@ buffer 为空则直接通过。
 」
 
 【整理后的完整內容】：
+```buffer
 {candidate_buffer}
+```
 
 【本轮新发现的 aliases】：
+```aliases
 {json.dumps(candidate_aliases, ensure_ascii=False) if candidate_aliases else "[]"}
+```
 """
 
             eval_raw = llm.generate(
@@ -597,7 +603,7 @@ class EvalAgent(BaseAgent):
 1. 先根据任务描述、skill 功能、输入内容、执行结果进行完整推理分析。
 2. 判断结果是否符合预期。
 3. 若不通过，指出具体原因。
-4. 最终只输出 markdown JSON 区块。
+4. 最终只输出 ```json``` 区块。
 
 评估标准：
 - 若是读资料，只要读取成功就通过
